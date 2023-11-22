@@ -107,7 +107,7 @@ def pspnet_50(n_classes,  input_height=473, input_width=473, channels=3):
     model = _build_pspnet(nb_classes=nb_classes,
                           resnet_layers=resnet_layers,
                           input_shape=input_shape, channels=channels)
-    model_aspp = _build_pspnet(nb_classes=nb_classes,
+    model_aspp = _build_pspnet_aspp_parallel_ppm(nb_classes=nb_classes,
                           resnet_layers=resnet_layers,
                           input_shape=input_shape, channels=channels)
     model.model_name = "pspnet_50"
