@@ -235,7 +235,6 @@ def interp_block(prev_layer, level, feature_map_shape, input_shape):
     prev_layer = Interp(feature_map_shape)(prev_layer)
     return prev_layer
 
-
 def build_pyramid_pooling_module(res, input_shape):
     """Build the Pyramid Pooling Module."""
     # ---PSPNet concat layers with Interpolation
@@ -272,6 +271,60 @@ def _build_pspnet(nb_classes, resnet_layers, input_shape,
 
     x = Conv2D(512, (3, 3), strides=(1, 1), padding="same", name="conv5_4",
                use_bias=False)(psp)
+    x = BN(name="conv5_4_bn")(x)
+    x = Activation('relu')(x)
+    x = Dropout(0.1)(x)
+
+    x = Conv2D(nb_classes, (1, 1), strides=(1, 1), name="conv6")(x)
+    # x = Lambda(Interp, arguments={'shape': (
+    #    input_shape[0], input_shape[1])})(x)
+    x = Interp([input_shape[0], input_shape[1]])(x)
+
+    model = get_segmentation_model(inp, x)
+    model.seg_feats_layer_name = "conv5_4"
+
+    return model
+
+def create_aspp(input_layer, num_filters, rates=[6, 12, 18], kernel_size=3):
+    # Create ASPP branches with different dilation rates
+    aspp_branches = []
+    for rate in rates:
+        aspp_branch = layers.Conv2D(num_filters, kernel_size, padding='same', dilation_rate=rate, activation='relu')(input_layer)
+        aspp_branches.append(aspp_branch)
+
+    # Global Average Pooling (GAP) branch
+    gap_branch = layers.GlobalAveragePooling2D()(input_layer)
+    gap_branch = layers.Reshape((1, 1, num_filters))(gap_branch)
+    gap_branch = layers.Conv2D(num_filters, 1, activation='relu')(gap_branch)
+    gap_branch = layers.UpSampling2D(size=(input_layer.shape[1], input_layer.shape[2]), interpolation='bilinear')(gap_branch)
+
+    # Concatenate ASPP and GAP branches
+    aspp_concat = layers.Concatenate()([*aspp_branches, gap_branch])
+
+    # Final convolution to combine information
+    aspp_output = layers.Conv2D(num_filters, 1, activation='relu')(aspp_concat)
+
+    return aspp_output
+
+def _build_pspnet_aspp_parallel_ppm(nb_classes, resnet_layers, input_shape,
+                  activation='softmax', channels=3):
+
+    assert IMAGE_ORDERING == 'channels_last'
+
+    inp = Input((input_shape[0], input_shape[1], channels))
+
+    # ResNet backbone
+    res = ResNet(inp, layers=resnet_layers)
+
+    # ASSP architecture 
+    aspp_output = create_aspp(res, num_filters=256)
+    # Build the pyramid pooling module 
+    ppm_output = build_pyramid_pooling_module(res, input_shape)
+
+    combined_output = Concatenate()([aspp_output, ppm_output]) if 'ppm_output' else aspp_output
+
+    x = Conv2D(512, (3, 3), strides=(1, 1), padding="same", name="conv5_4",
+               use_bias=False)(combined_output)
     x = BN(name="conv5_4_bn")(x)
     x = Activation('relu')(x)
     x = Dropout(0.1)(x)
