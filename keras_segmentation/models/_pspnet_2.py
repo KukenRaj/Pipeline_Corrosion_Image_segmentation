@@ -280,6 +280,7 @@ def _build_pspnet(nb_classes, resnet_layers, input_shape,
     #    input_shape[0], input_shape[1])})(x)
     x = Interp([input_shape[0], input_shape[1]])(x)
 
+   # def get_segmentation_model(input, output)
     model = get_segmentation_model(inp, x)
     model.seg_feats_layer_name = "conv5_4"
 
