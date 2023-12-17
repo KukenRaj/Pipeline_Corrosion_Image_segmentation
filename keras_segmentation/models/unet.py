@@ -1,5 +1,6 @@
 from keras.models import *
 from keras.layers import *
+from keras.losses import *
 
 from .config import IMAGE_ORDERING
 from .model_utils import get_segmentation_model
@@ -8,6 +9,43 @@ from .mobilenet import get_mobilenet_encoder
 from .basic_models import vanilla_encoder
 from .resnet50 import get_resnet50_encoder
 
+# from keras.layers import Reshape, Dense, Multiply, Add
+import tensorflow as tf
+
+def focal_loss(y_true, y_pred, alpha=0.25, gamma=2.0):
+    # Define binary cross-entropy
+    bce = binary_crossentropy(y_true, y_pred)
+
+    # Calculate the modulating factor
+    p_t = (y_true * y_pred) + ((1 - y_true) * (1 - y_pred))
+    modulating_factor = tf.pow((1 - p_t), gamma)
+
+    # Calculate the focal loss
+    focal_loss = alpha * modulating_factor * bce
+
+    return focal_loss
+
+def SE_block(inputs, ratio=16):
+    channels = inputs.shape[-1]
+    se = GlobalAveragePooling2D()(inputs)
+    se = Dense(channels // ratio, activation='relu')(se)
+    se = Dense(channels, activation='sigmoid')(se)
+    se = Reshape((1, 1, channels))(se)
+    output = Multiply()([inputs, se])
+    return output
+
+def FRAM_block(level, filters, kernel_size):
+    # Attention mechanism (Squeeze-and-Excitation block)
+    attention = SE_block(level)
+    refined_features = Multiply()([level, attention])
+    # Feature refinement
+    x = Conv2D(filters, kernel_size, padding='same')(refined_features)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    # Merge original and refined features
+    output = Add()([level, x])
+
+    return output
 
 if IMAGE_ORDERING == 'channels_first':
     MERGE_AXIS = 1
@@ -67,12 +105,16 @@ def unet_mini(n_classes, input_height=360, input_width=480, channels=3):
 
 
 def _unet(n_classes, encoder, l1_skip_conn=True, input_height=416,
-          input_width=608, channels=3):
+          input_width=608, channels=3, pipe=False):
 
     img_input, levels = encoder(
         input_height=input_height, input_width=input_width, channels=channels)
     [f1, f2, f3, f4, f5] = levels
-
+    
+    if pipe==True:
+        f3 = FRAM_block(f3, 256, (3, 3))
+        f2 = FRAM_block(f2, 256, (3, 3))
+        f1 = FRMA_block(f1, 256, (3, 3))
     o = f4
 
     o = (ZeroPadding2D((1, 1), data_format=IMAGE_ORDERING))(o)
@@ -104,6 +146,8 @@ def _unet(n_classes, encoder, l1_skip_conn=True, input_height=416,
                data_format=IMAGE_ORDERING)(o)
 
     model = get_segmentation_model(img_input, o)
+    if pipe==True:
+        model.compile(optimizer='adam', loss=focal_loss)
 
     return model
 
@@ -128,8 +172,24 @@ def resnet50_unet(n_classes, input_height=416, input_width=608,
                   encoder_level=3, channels=3):
 
     model = _unet(n_classes, get_resnet50_encoder,
-                  input_height=input_height, input_width=input_width, channels=channels)
+                  input_height=input_height, input_width=input_width, channels=channels, pipe=False)
     model.model_name = "resnet50_unet"
+    return model
+
+def resnet50_pipeunet(n_classes, input_height=416, input_width=608,
+                  encoder_level=3, channels=3):
+
+    model = _unet(n_classes, get_resnet50_encoder,
+                  input_height=input_height, input_width=input_width, channels=channels, pipe=True)
+    model.model_name = "resnet50_unet"
+    return model
+
+def resnet50_pipeunet(n_classes, input_height=416, input_width=608,
+                  encoder_level=3, channels=3):
+
+    model = _unet(n_classes, get_resnet50_encoder,
+                  input_height=input_height, input_width=input_width, channels=channels)
+    model.model_name = "resnet50_pipeunet"
     return model
 
 
