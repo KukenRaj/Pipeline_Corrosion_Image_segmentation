@@ -295,7 +295,7 @@ def create_aspp(input_layer, num_filters, rates=[6, 12, 18], kernel_size=3):
 
     # Global Average Pooling (GAP) branch
     gap_branch = layers.GlobalAveragePooling2D()(input_layer)
-    gap_branch = layers.Reshape((1, 1, num_filters))(gap_branch)
+    gap_branch = layers.Reshape((1, 1, input_layer.shape[-1]))(gap_branch)  # Reshape to (1, 1, input_shape[-1])
     gap_branch = layers.Conv2D(num_filters, 1, activation='relu')(gap_branch)
     gap_branch = layers.UpSampling2D(size=(input_layer.shape[1], input_layer.shape[2]), interpolation='bilinear')(gap_branch)
 
