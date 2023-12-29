@@ -100,6 +100,7 @@ def resnet50_pspnet(n_classes,  input_height=384, input_width=576, channels=3):
 
 def pspnet_50(n_classes,  input_height=473, input_width=473, channels=3):
     from ._pspnet_2 import _build_pspnet
+    from ._pspnet_2 import _build_aspp_psp
 
     nb_classes = n_classes
     resnet_layers = 50
@@ -107,12 +108,12 @@ def pspnet_50(n_classes,  input_height=473, input_width=473, channels=3):
     model = _build_pspnet(nb_classes=nb_classes,
                           resnet_layers=resnet_layers,
                           input_shape=input_shape, channels=channels)
-    model_aspp = _build_pspnet_aspp_parallel_ppm(nb_classes=nb_classes,
+    model_aspp = _build_aspp_psp(nb_classes=nb_classes,
                           resnet_layers=resnet_layers,
                           input_shape=input_shape, channels=channels)
     model.model_name = "pspnet_50"
     model_aspp.model_name = 'pspnet_aspp_50'
-    return model, model_aspp
+    return model,model_aspp
 
 def pspnet_50_aspp(n_classes,  input_height=473, input_width=473, channels=3):
     from ._pspnet_2 import _build_pspnet

@@ -307,7 +307,7 @@ def create_aspp(input_layer, num_filters, rates=[6, 12, 18], kernel_size=3):
 
     return aspp_output
 
-def _build_pspnet_aspp_parallel_ppm(nb_classes, resnet_layers, input_shape,
+def _build_aspp_psp(nb_classes, resnet_layers, input_shape,
                   activation='softmax', channels=3):
 
     assert IMAGE_ORDERING == 'channels_last'
